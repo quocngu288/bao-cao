@@ -18,60 +18,112 @@ const revenueData = {
   },
 };
 
+// Format số tiền - Tương thích với mobile browsers
+function formatCurrency(amount) {
+  if (typeof amount !== "number" || isNaN(amount)) {
+    return "0 VNĐ";
+  }
+
+  try {
+    // Sử dụng Intl.NumberFormat nếu hỗ trợ (iOS Safari 10+)
+    if (typeof Intl !== "undefined" && Intl.NumberFormat) {
+      return new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "VND",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(amount);
+    } else {
+      // Fallback cho browser cũ
+      return amount.toLocaleString("vi-VN") + " VNĐ";
+    }
+  } catch (error) {
+    // Fallback nếu có lỗi
+    return amount.toLocaleString("vi-VN") + " VNĐ";
+  }
+}
+
 // Tính toán lợi nhuận tự động
 function calculateProfit() {
-  const profitElements = document.querySelectorAll(".profit");
+  try {
+    const profitElements = document.querySelectorAll(".profit");
 
-  profitElements.forEach((element) => {
-    const row = element.closest("tr");
-
-    // Lấy doanh thu từ data attribute hoặc từ ô revenue
-    const revenueText = row.querySelector(".revenue")?.textContent || "";
-    const revenue =
-      parseInt(revenueText.replace(/[^\d]/g, "")) ||
-      parseInt(element.dataset.revenue) ||
-      0;
-
-    // Lấy mặt bằng từ cột thứ 3 (index 2)
-    const rentCell = row.querySelectorAll("td")[2];
-    const rentText = rentCell?.textContent || "";
-    let rent = 0;
-    if (rentText.includes("phòng")) {
-      // Nếu là "4 phòng", giả sử giá trị mặc định hoặc tính theo số phòng
-      const roomCount = parseInt(rentText.match(/\d+/)?.[0] || "0");
-      rent = roomCount * 5000000; // Giả sử mỗi phòng 5 triệu
-    } else {
-      rent = parseInt(rentText.replace(/[^\d]/g, "")) || 0;
+    if (!profitElements || profitElements.length === 0) {
+      console.warn("Không tìm thấy phần tử .profit");
+      return;
     }
 
-    // Lấy nhân viên từ cột staff-cost
-    const staffCell = row.querySelector(".staff-cost");
-    const staffText = staffCell?.textContent || "";
-    const staff = parseInt(staffText.replace(/[^\d]/g, "")) || 0;
+    profitElements.forEach((element) => {
+      try {
+        const row = element.closest("tr");
+        if (!row) {
+          console.warn("Không tìm thấy row element");
+          return;
+        }
 
-    // Tính tổng chi phí = mặt bằng + nhân viên
-    const totalCosts = rent + staff;
+        // Lấy doanh thu từ data attribute hoặc từ ô revenue
+        const revenueCell = row.querySelector(".revenue");
+        const revenueText = revenueCell ? revenueCell.textContent || "" : "";
+        const revenue =
+          parseInt(revenueText.replace(/[^\d]/g, "")) ||
+          parseInt(element.dataset.revenue) ||
+          0;
 
-    // Tính lợi nhuận = doanh thu - chi phí
-    const profit = revenue - totalCosts;
+        // Lấy mặt bằng từ cột thứ 3 (index 2)
+        const rentCells = row.querySelectorAll("td");
+        const rentCell = rentCells[2];
+        const rentText = rentCell ? rentCell.textContent || "" : "";
+        let rent = 0;
+        if (rentText.indexOf("phòng") !== -1) {
+          // Nếu là "4 phòng", giả sử giá trị mặc định hoặc tính theo số phòng
+          const roomMatch = rentText.match(/\d+/);
+          const roomCount = roomMatch ? parseInt(roomMatch[0]) : 0;
+          rent = roomCount * 5000000; // Giả sử mỗi phòng 5 triệu
+        } else {
+          rent = parseInt(rentText.replace(/[^\d]/g, "")) || 0;
+        }
 
-    // Cập nhật giá trị lợi nhuận
-    element.textContent = formatCurrency(profit);
+        // Lấy nhân viên từ cột staff-cost
+        const staffCell = row.querySelector(".staff-cost");
+        const staffText = staffCell ? staffCell.textContent || "" : "";
+        const staff = parseInt(staffText.replace(/[^\d]/g, "")) || 0;
 
-    // Cập nhật data attributes để tính tổng sau này
-    element.dataset.revenue = revenue;
-    element.dataset.costs = totalCosts;
+        // Tính tổng chi phí = mặt bằng + nhân viên
+        const totalCosts = rent + staff;
 
-    // Thêm class màu sắc dựa trên lợi nhuận
-    element.classList.remove("profit-high", "profit-medium", "profit-low");
-    if (profit >= 200000000) {
-      element.classList.add("profit-high");
-    } else if (profit >= 100000000) {
-      element.classList.add("profit-medium");
-    } else {
-      element.classList.add("profit-low");
-    }
-  });
+        // Tính lợi nhuận = doanh thu - chi phí
+        const profit = revenue - totalCosts;
+
+        // Cập nhật giá trị lợi nhuận
+        if (element && typeof formatCurrency === "function") {
+          element.textContent = formatCurrency(profit);
+        } else {
+          // Fallback nếu formatCurrency chưa có
+          element.textContent = profit.toLocaleString("vi-VN") + " VNĐ";
+        }
+
+        // Cập nhật data attributes để tính tổng sau này
+        if (element.dataset) {
+          element.dataset.revenue = revenue.toString();
+          element.dataset.costs = totalCosts.toString();
+        }
+
+        // Thêm class màu sắc dựa trên lợi nhuận
+        element.classList.remove("profit-high", "profit-medium", "profit-low");
+        if (profit >= 200000000) {
+          element.classList.add("profit-high");
+        } else if (profit >= 100000000) {
+          element.classList.add("profit-medium");
+        } else {
+          element.classList.add("profit-low");
+        }
+      } catch (error) {
+        console.error("Lỗi khi tính lợi nhuận cho một phần tử:", error);
+      }
+    });
+  } catch (error) {
+    console.error("Lỗi trong hàm calculateProfit:", error);
+  }
 }
 
 // Cập nhật tổng lợi nhuận
@@ -428,83 +480,166 @@ function animateNumbers() {
   });
 }
 
-// Xử lý popup modal cho hình ảnh hóa đơn
+// Xử lý popup modal cho hình ảnh hóa đơn - Tương thích mobile
 function handleInvoiceModal() {
-  const modal = document.getElementById("invoiceModal");
-  const modalImage = document.getElementById("modalImage");
-  const modalCaption = document.getElementById("modalCaption");
-  const closeBtn = document.querySelector(".close");
-  const thumbnails = document.querySelectorAll(".invoice-thumbnail");
+  try {
+    const modal = document.getElementById("invoiceModal");
+    const modalImage = document.getElementById("modalImage");
+    const modalCaption = document.getElementById("modalCaption");
+    const closeBtn = document.querySelector(".close");
+    const thumbnails = document.querySelectorAll(".invoice-thumbnail");
 
-  // Mở modal khi click vào thumbnail
-  thumbnails.forEach((thumbnail) => {
-    thumbnail.addEventListener("click", function () {
-      modal.style.display = "block";
-      modalImage.src = this.dataset.fullImage;
-      modalCaption.textContent = this.alt;
-      document.body.style.overflow = "hidden"; // Ngăn scroll
+    if (!modal || !modalImage || !modalCaption) {
+      console.warn("Không tìm thấy các element của modal");
+      return;
+    }
+
+    // Hàm mở modal
+    function openModal(imageSrc, caption) {
+      try {
+        modalImage.src = imageSrc;
+        modalCaption.textContent = caption || "Hóa đơn";
+        modal.style.display = "block";
+
+        // Ngăn scroll - tương thích với iOS Safari
+        document.body.style.overflow = "hidden";
+        document.body.style.position = "fixed";
+        document.body.style.width = "100%";
+
+        // Prevent touch move trên iOS
+        document.addEventListener("touchmove", preventScroll, {
+          passive: false,
+        });
+      } catch (error) {
+        console.error("Lỗi khi mở modal:", error);
+      }
+    }
+
+    // Hàm đóng modal
+    function closeModal() {
+      try {
+        modal.style.display = "none";
+
+        // Khôi phục scroll
+        document.body.style.overflow = "";
+        document.body.style.position = "";
+        document.body.style.width = "";
+
+        // Remove touch move listener
+        document.removeEventListener("touchmove", preventScroll);
+      } catch (error) {
+        console.error("Lỗi khi đóng modal:", error);
+      }
+    }
+
+    // Prevent scroll khi modal mở (iOS Safari)
+    function preventScroll(e) {
+      if (modal.style.display === "block") {
+        e.preventDefault();
+      }
+    }
+
+    // Mở modal khi click vào thumbnail (hỗ trợ cả touch và click)
+    if (thumbnails && thumbnails.length > 0) {
+      thumbnails.forEach((thumbnail) => {
+        // Sử dụng cả click và touchstart để tương thích mobile
+        thumbnail.addEventListener("click", function (e) {
+          e.preventDefault();
+          const imageSrc = this.dataset.fullImage || this.src;
+          openModal(imageSrc, this.alt);
+        });
+
+        // Touch event cho mobile
+        thumbnail.addEventListener("touchend", function (e) {
+          e.preventDefault();
+          const imageSrc = this.dataset.fullImage || this.src;
+          openModal(imageSrc, this.alt);
+        });
+      });
+    }
+
+    // Đóng modal khi click vào nút X
+    if (closeBtn) {
+      closeBtn.addEventListener("click", closeModal);
+      closeBtn.addEventListener("touchend", function (e) {
+        e.preventDefault();
+        closeModal();
+      });
+    }
+
+    // Đóng modal khi click bên ngoài
+    modal.addEventListener("click", function (e) {
+      if (e.target === modal) {
+        closeModal();
+      }
     });
-  });
 
-  // Đóng modal khi click vào nút X
-  closeBtn.addEventListener("click", function () {
-    modal.style.display = "none";
-    document.body.style.overflow = "auto"; // Khôi phục scroll
-  });
+    // Đóng modal bằng phím ESC (desktop)
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && modal.style.display === "block") {
+        closeModal();
+      }
+    });
 
-  // Đóng modal khi click bên ngoài
-  modal.addEventListener("click", function (e) {
-    if (e.target === modal) {
-      modal.style.display = "none";
-      document.body.style.overflow = "auto";
-    }
-  });
-
-  // Đóng modal bằng phím ESC
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && modal.style.display === "block") {
-      modal.style.display = "none";
-      document.body.style.overflow = "auto";
-    }
-  });
+    console.log("✓ Modal handlers đã được gắn thành công");
+  } catch (error) {
+    console.error("✗ Lỗi khi khởi tạo modal handlers:", error);
+  }
 }
 
-// Khởi tạo khi trang load
-document.addEventListener("DOMContentLoaded", function () {
+// Khởi tạo khi trang load - Hỗ trợ cả DOMContentLoaded và window.onload
+function initializeApp() {
+  // Kiểm tra xem DOM đã sẵn sàng chưa
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initializeApp);
+    return;
+  }
+
   // Tính toán lợi nhuận trước
   try {
     calculateProfit();
     updateTotalProfit();
     updateSummary();
+    console.log("✓ Tính toán lợi nhuận và tổng quan đã hoàn thành");
   } catch (error) {
-    console.error("Lỗi khi tính toán:", error);
+    console.error("✗ Lỗi khi tính toán:", error);
   }
 
   // Khởi tạo modal popup
   try {
     handleInvoiceModal();
+    console.log("✓ Modal popup đã được khởi tạo");
   } catch (error) {
-    console.error("Lỗi khi khởi tạo modal:", error);
+    console.error("✗ Lỗi khi khởi tạo modal:", error);
   }
 
   // Đợi Chart.js load xong và tạo biểu đồ
+  let chartAttempts = 0;
+  const maxChartAttempts = 50; // Tối đa 5 giây
+
   function initChart() {
+    chartAttempts++;
+
     if (typeof Chart === "undefined") {
-      console.warn("Chart.js chưa được load, đang chờ...");
-      setTimeout(initChart, 100);
-      return;
+      if (chartAttempts < maxChartAttempts) {
+        setTimeout(initChart, 100);
+        return;
+      } else {
+        console.error("✗ Chart.js không thể load sau nhiều lần thử");
+        return;
+      }
     }
 
     try {
       const canvas = document.getElementById("revenueChart");
       if (canvas) {
         createChart();
-        console.log("Biểu đồ đã được tạo thành công!");
+        console.log("✓ Biểu đồ đã được tạo thành công!");
       } else {
-        console.error("Không tìm thấy canvas element với id 'revenueChart'");
+        console.error("✗ Không tìm thấy canvas element với id 'revenueChart'");
       }
     } catch (error) {
-      console.error("Lỗi khi tạo biểu đồ:", error);
+      console.error("✗ Lỗi khi tạo biểu đồ:", error);
     }
   }
 
@@ -515,10 +650,34 @@ document.addEventListener("DOMContentLoaded", function () {
   setTimeout(() => {
     try {
       animateNumbers();
+      console.log("✓ Animation đã được khởi chạy");
     } catch (error) {
-      console.error("Lỗi khi animate numbers:", error);
+      console.error("✗ Lỗi khi animate numbers:", error);
     }
   }, 500);
+
+  console.log("✓ Ứng dụng đã được khởi tạo");
+}
+
+// Khởi chạy ứng dụng
+if (
+  document.readyState === "complete" ||
+  document.readyState === "interactive"
+) {
+  // DOM đã sẵn sàng, chạy ngay
+  setTimeout(initializeApp, 1);
+} else {
+  // Chờ DOM load
+  document.addEventListener("DOMContentLoaded", initializeApp);
+}
+
+// Fallback: Nếu DOMContentLoaded không fire (một số browser cũ)
+window.addEventListener("load", function () {
+  // Kiểm tra xem đã khởi tạo chưa
+  if (!window.appInitialized) {
+    window.appInitialized = true;
+    initializeApp();
+  }
 });
 
 // Thêm hiệu ứng hover cho các card
